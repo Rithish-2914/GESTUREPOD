@@ -28,7 +28,7 @@ A gesture-based application for quickly transferring text and images from your c
 
 1. Clone the repository:
    ```
-   git clone https://github.com/prutxvi/gesture-drop.git
+   git clone https://github.com/Rithish-2914/GESTUREPOD.git
    cd gesture-drop
    ```
 
