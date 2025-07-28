@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gesture Drop 📲</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #000000, #1a1a1a);
+      color: #00ffcc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin: 20px 0 10px;
+      animation: fadeInDown 0.8s ease-out;
+    }
+
+    #output {
+      margin-top: 20px;
+      padding: 20px;
+      max-width: 90%;
+      border-radius: 15px;
+      font-size: 20px;
+      text-align: center;
+      background: rgba(0, 255, 200, 0.08);
+      border: 2px solid #00ffcc;
+      box-shadow: 0 0 20px rgba(0, 255, 200, 0.5);
+      min-height: 100px;
+      transition: all 0.3s ease;
+    }
+
+    #output.active {
+      background: rgba(0, 255, 200, 0.18);
+      box-shadow: 0 0 30px #00ffcc;
+      transform: scale(1.02);
+    }
+
+    #image-preview {
+      margin-top: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #00ffcc;
+      max-width: 90%;
+      display: none;
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    #image-preview.show {
+      display: block;
+    }
+
+    #video {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      width: 120px;
+      height: 160px;
+      border: 2px solid #00ffcc;
+      border-radius: 12px;
+      box-shadow: 0 0 10px #00ffcc;
+      opacity: 0.9;
+      z-index: 99;
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>🖐 Gesture Drop Activated</h2>
+
+  <div id="output">Waiting for your gesture...</div>
+  <img id="image-preview" src="" alt="Image" />
+  <video id="video" autoplay playsinline muted></video>
+
+  <script>
+    async function main() {
+      const video = document.getElementById("video");
+      const output = document.getElementById("output");
+      const imgPreview = document.getElementById("image-preview");
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert("⚠️ Please allow camera access in mobile browser settings.");
+        return;
+      }
+
+      const model = await handpose.load();
+
+      async function detect() {
+        const predictions = await model.estimateHands(video);
+        if (predictions.length > 0) {
+          const hand = predictions[0];
+          const landmarks = hand.landmarks;
+
+          const [thumbTip, thumbIP, thumbMCP] = [landmarks[4], landmarks[3], landmarks[2]];
+          const [indexTip, middleTip, ringTip, pinkyTip] = [
+            landmarks[8], landmarks[12], landmarks[16], landmarks[20]
+          ];
+          const wrist = landmarks[0];
+
+          const isThumbUp = thumbTip[1] < thumbIP[1] && thumbIP[1] < thumbMCP[1];
+          const areFingersDown =
+            indexTip[1] > wrist[1] &&
+            middleTip[1] > wrist[1] &&
+            ringTip[1] > wrist[1] &&
+            pinkyTip[1] > wrist[1];
+
+          const isOpenPalm =
+            indexTip[1] < wrist[1] &&
+            middleTip[1] < wrist[1] &&
+            ringTip[1] < wrist[1] &&
+            pinkyTip[1] < wrist[1] &&
+            thumbTip[0] < indexTip[0];
+
+          if (isThumbUp && areFingersDown) {
+            fetch("/get")
+              .then(res => res.json())
+              .then(data => {
+                output.innerText = "🖼️ Showing Image Only";
+                output.classList.add("active");
+
+                if (data.image && data.image !== "") {
+                  imgPreview.src = `/static/uploads/${data.image}`;
+                  imgPreview.classList.add("show");
+                }
+              });
+          } else if (isOpenPalm) {
+            fetch("/get")
+              .then(res => res.json())
+              .then(data => {
+                output.innerText = data.text || "📄 Showing Text + Image";
+                output.classList.add("active");
+
+                if (data.image && data.image !== "") {
+                  imgPreview.src = `/static/uploads/${data.image}`;
+                  imgPreview.classList.add("show");
+                }
+              });
+          } else {
+            output.classList.remove("active");
+            imgPreview.classList.remove("show");
+          }
+        } else {
+          output.classList.remove("active");
+          imgPreview.classList.remove("show");
+        }
+
+        requestAnimationFrame(detect);
+      }
+
+      detect();
+    }
+
+    main();
+  </script>
+</body>
+</html>
